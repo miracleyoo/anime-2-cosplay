@@ -19,14 +19,14 @@ parser.add_argument('--imageSize', type=int, default=64, help='the height / widt
 parser.add_argument('--nz', type=int, default=4096, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
-parser.add_argument('--niter', type=int, default=1000, help='number of epochs to train for')
+parser.add_argument('--niter', type=int, default=5000, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0001, help='learning rate, default=0.0002')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
-parser.add_argument('--netG', default='./outputs/models/a2c_01/netG_epoch_1600.pth',
+parser.add_argument('--netG', default='./outputs/models/a2c_01/netG_epoch_1950.pth',
                     help="path to netG (to continue training)")
-parser.add_argument('--netD', default='./outputs/models/a2c_01/netD_epoch_1600.pth',
+parser.add_argument('--netD', default='./outputs/models/a2c_01/netD_epoch_1950.pth',
                     help="path to netD (to continue training)")
 parser.add_argument('--outf', default='./outputs/', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -54,15 +54,19 @@ if torch.cuda.is_available() and not opt.cuda:
 # Load animation and cosplay dataset
 dataset_ani = dset.ImageFolder(root=opt.dataroot_ani,
                                transform=transforms.Compose([
+                                   transforms.RandomRotation(10),
                                    transforms.Resize(opt.imageSize),
-                                   transforms.CenterCrop(opt.imageSize),
+                                   transforms.RandomCrop(opt.imageSize),
+                                   transforms.RandomHorizontalFlip(),
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
 dataset_cos = dset.ImageFolder(root=opt.dataroot_cos,
                                transform=transforms.Compose([
+                                   transforms.RandomRotation(10),
                                    transforms.Resize(opt.imageSize),
-                                   transforms.CenterCrop(opt.imageSize),
+                                   transforms.RandomCrop(opt.imageSize),
+                                   transforms.RandomHorizontalFlip(),
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
