@@ -47,6 +47,7 @@ torch.manual_seed(opt.manualSeed)
 
 # Enables benchmark mode in cudnn, which will accelerate for a certain batch size
 cudnn.benchmark = True
+save_pic = False
 
 if torch.cuda.is_available() and not opt.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
@@ -247,7 +248,7 @@ for epoch in range(opt.niter):
         print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
               % (epoch, opt.niter, i, len(dataloader_cos),
                  errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-        if (i+1) % 6 == 0:
+        if (i+1) % 6 == 0 and save_pic:
             vutils.save_image(real_cpu_cos,
                               '%s/real_samples.png' % opt.outf,
                               normalize=True)
