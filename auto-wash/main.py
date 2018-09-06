@@ -3,12 +3,11 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 import sys
 import pickle
-
 from torch.utils.data import DataLoader
 from utils import *
-from data_loader import *
-from train import *
-from config import Config
+from .data_loader import *
+from .train import *
+from .config import Config
 
 opt = Config()
 

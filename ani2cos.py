@@ -117,7 +117,6 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
-
 # Generator network
 class Generator(nn.Module):
     def __init__(self, ngpu):
@@ -126,26 +125,24 @@ class Generator(nn.Module):
         self.main = nn.Sequential(
             # Compress and extract input animation image to 4 x 4
 
-            nn.Conv2d(nc, ndf, 4, 4, 0, bias=False),
+            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf) x 16 x 16
-            nn.Conv2d(ndf, ndf * 2, 4, 4, 0, bias=False),
-            nn.BatchNorm2d(ndf * 2),
+            # state size. (ndf) x 32 x 32
+            nn.Conv2d(ndf, ndf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*4) x 4 x 4
-
-            # nn.Conv2d(ndf * 2, ndf * 3, 4, 2, 1, bias=False),
-            # nn.BatchNorm2d(ndf * 3),
-            # nn.LeakyReLU(0.2, inplace=True),
-            # # state size. ndf x 8 x 8
-            # nn.Conv2d(ndf * 3, ndf * 4, 4, 2, 1, bias=False),
-            # nn.BatchNorm2d(ndf * 4),
-            # nn.LeakyReLU(0.2, inplace=True),
-            # # state size. (ndf x 4) x 4 x 4
-
+            # state size. (ndf*4) x 16 x 16
+            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 8 x 8
+            nn.Conv2d(ndf * 8, ndf * 16, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 16),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*8) x 4 x 4
             # Reconstruct the 4 x 4 feature map to cosplay image
 
-            nn.ConvTranspose2d(ndf * 2, ngf * 8, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf * 16, ngf * 8, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
             # state size. (ngf*4) x 8 x 8
@@ -176,7 +173,9 @@ writer.add_graph(netG, dummy_input)
 netG = netG.to(device)
 netG.apply(weights_init)
 if opt.netG != '':
-    pre_epoch, dictG = torch.load(opt.netG, map_location='cpu')
+    checkpoint = torch.load(opt.netG, map_location='cpu')
+    pre_epoch = checkpoint['epoch']
+    dictG = checkpoint['state_dict']
     netG.load_state_dict(dictG)
 print(netG)
 
@@ -221,9 +220,11 @@ netD = Discriminator(ngpu)
 writer.add_graph(netD, dummy_input)
 netD = netD.to(device)
 netD.apply(weights_init)
-if opt.netD != '':
-    pre_epoch, dictD = torch.load(opt.netD, map_location='cpu')
-    netD.load_state_dict(dictD)
+if opt.netG != '':
+    checkpoint = torch.load(opt.netG, map_location='cpu')
+    pre_epoch = checkpoint['epoch']
+    dictG = checkpoint['state_dict']
+    netG.load_state_dict(dictG)
 print(netD)
 
 criterion = nn.BCELoss()

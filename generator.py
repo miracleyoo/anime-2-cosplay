@@ -17,12 +17,12 @@ parser.add_argument('--imageSize', type=int, default=64, help='the height / widt
 parser.add_argument('--nz', type=int, default=4096, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
 parser.add_argument('--ndf', type=int, default=64)
-parser.add_argument('--niter', type=int, default=5000, help='number of epochs to train for')
+parser.add_argument('--niter', type=int, default=5002, help='number of epochs to train for')
 parser.add_argument('--lr', type=float, default=0.0001, help='learning rate, default=0.0002')
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
-parser.add_argument('--netG', default='./outputs/models/a2c_01/netG_epoch_3000.pth',
+parser.add_argument('--netG', default='./outputs/models/test/netG_epoch_4800.pth',
                     help="path to netG (to continue training)")
 parser.add_argument('--outf', default='./outputs/', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -48,9 +48,10 @@ if torch.cuda.is_available() and not opt.cuda:
 # Load animation and cosplay dataset
 dataset_ani = dset.ImageFolder(root=opt.dataroot_ani,
                                transform=transforms.Compose([
+                                   transforms.RandomRotation(10),
                                    transforms.Resize(opt.imageSize),
-                                   transforms.CenterCrop(opt.imageSize),
-                                   # transforms.RandomHorizontalFlip(),
+                                   transforms.RandomCrop(opt.imageSize),
+                                   transforms.RandomHorizontalFlip(),
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]))
@@ -127,18 +128,75 @@ class Generator(nn.Module):
             outputs = self.main(inputs)
         return outputs
 
+        # class Generator(nn.Module):
+#     def __init__(self, ngpu):
+#         super(Generator, self).__init__()
+#         self.ngpu = ngpu
+#         self.main = nn.Sequential(
+#             # Compress and extract input animation image to 4 x 4
+#
+#             nn.Conv2d(nc, ndf, 4, 4, 0, bias=False),
+#             nn.LeakyReLU(0.2, inplace=True),
+#             # state size. (ndf) x 16 x 16
+#             nn.Conv2d(ndf, ndf * 2, 4, 4, 0, bias=False),
+#             nn.BatchNorm2d(ndf * 2),
+#             nn.LeakyReLU(0.2, inplace=True),
+#             # state size. (ndf*4) x 4 x 4
+#
+#             # nn.Conv2d(ndf * 2, ndf * 3, 4, 2, 1, bias=False),
+#             # nn.BatchNorm2d(ndf * 3),
+#             # nn.LeakyReLU(0.2, inplace=True),
+#             # # state size. ndf x 8 x 8
+#             # nn.Conv2d(ndf * 3, ndf * 4, 4, 2, 1, bias=False),
+#             # nn.BatchNorm2d(ndf * 4),
+#             # nn.LeakyReLU(0.2, inplace=True),
+#             # # state size. (ndf x 4) x 4 x 4
+#
+#             # Reconstruct the 4 x 4 feature map to cosplay image
+#
+#             nn.ConvTranspose2d(ndf * 2, ngf * 8, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 8),
+#             nn.ReLU(True),
+#             # state size. (ngf*4) x 8 x 8
+#             nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf * 4),
+#             nn.ReLU(True),
+#             # state size. (ngf*2) x 16 x 16
+#             nn.ConvTranspose2d(ngf * 4, ngf, 4, 2, 1, bias=False),
+#             nn.BatchNorm2d(ngf),
+#             nn.ReLU(True),
+#             # state size. (ngf) x 32 x 32
+#             nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),
+#             nn.Tanh()
+#             # state size. (nc) x 64 x 64
+#         )
+
+    # def forward(self, inputs):
+    #     if inputs.is_cuda and self.ngpu > 1:
+    #         outputs = nn.parallel.data_parallel(self.main, inputs, range(self.ngpu))
+    #     else:
+    #         outputs = self.main(inputs)
+    #     return outputs
+
 
 # Instantiation and load of netG
 netG = Generator(ngpu).to(device)
 netG.apply(weights_init)
 if opt.netG != '':
-    netG.load_state_dict(torch.load(opt.netG, map_location='cpu'))
+    checkpoint = torch.load(opt.netG, map_location='cpu')
+    pre_epoch = checkpoint['epoch']
+    dictG = checkpoint['state_dict']
+    netG.load_state_dict(dictG)
 
 for epoch in range(opt.niter):
     for i, data in enumerate(dataloader_ani, 0):
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
+        if epoch == 0:
+            vutils.save_image(data[0].data,
+                              '%s/input_image.png' % (opt.outf+'real_samples'),
+                              normalize=True)
         real_cpu_ani = data[0].to(device)
         fake = netG(real_cpu_ani)
         vutils.save_image(fake.detach(),
