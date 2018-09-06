@@ -24,9 +24,9 @@ parser.add_argument('--lr', type=float, default=0.0001, help='learning rate, def
 parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. default=0.5')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
-parser.add_argument('--netG', default='./outputs/models/a2c_01/netG_epoch_849.pth',
+parser.add_argument('--netG', default='',
                     help="path to netG (to continue training)")
-parser.add_argument('--netD', default='./outputs/models/a2c_01/netD_epoch_849.pth',
+parser.add_argument('--netD', default='',
                     help="path to netD (to continue training)")
 parser.add_argument('--outf', default='./outputs/', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -104,24 +104,26 @@ class Generator(nn.Module):
         self.main = nn.Sequential(
             # Compress and extract input animation image to 4 x 4
 
-            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            nn.Conv2d(nc, ndf, 4, 4, 0, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf) x 32 x 32
-            nn.Conv2d(ndf, ndf * 4, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 4),
+            # state size. (ndf) x 16 x 16
+            nn.Conv2d(ndf, ndf * 2, 4, 4, 0, bias=False),
+            nn.BatchNorm2d(ndf * 2),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*4) x 16 x 16
-            nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 8),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 8 x 8
-            nn.Conv2d(ndf * 8, ndf * 16, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 16),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*8) x 4 x 4
+            # state size. (ndf*4) x 4 x 4
+
+            # nn.Conv2d(ndf * 2, ndf * 3, 4, 2, 1, bias=False),
+            # nn.BatchNorm2d(ndf * 3),
+            # nn.LeakyReLU(0.2, inplace=True),
+            # # state size. ndf x 8 x 8
+            # nn.Conv2d(ndf * 3, ndf * 4, 4, 2, 1, bias=False),
+            # nn.BatchNorm2d(ndf * 4),
+            # nn.LeakyReLU(0.2, inplace=True),
+            # # state size. (ndf x 4) x 4 x 4
+
             # Reconstruct the 4 x 4 feature map to cosplay image
 
-            nn.ConvTranspose2d(ngf * 16, ngf * 8, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ndf * 2, ngf * 8, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
             # state size. (ngf*4) x 8 x 8
@@ -259,5 +261,5 @@ for epoch in range(opt.niter):
 
     # do checkpointing
     if epoch % 200 == 0:
-        torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf+'models/', epoch))
-        torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf+'models/', epoch))
+        torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf+'models', epoch))
+        torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf+'models', epoch))
