@@ -9,12 +9,15 @@ import torch.utils.data
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
+import numpy as np
+from tensorboardX import SummaryWriter
+from torch.autograd import Variable
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot_ani', default='./Datasets/ani', help='path to dataset')
 parser.add_argument('--dataroot_cos', default='./Datasets/cos', help='path to dataset')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=2)
-parser.add_argument('--batchSize', type=int, default=64, help='input batch size')
+parser.add_argument('--batchSize', type=int, default=256, help='input batch size')
 parser.add_argument('--imageSize', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--nz', type=int, default=4096, help='size of the latent z vector')
 parser.add_argument('--ngf', type=int, default=64)
@@ -29,15 +32,29 @@ parser.add_argument('--netG', default='',
 parser.add_argument('--netD', default='',
                     help="path to netD (to continue training)")
 parser.add_argument('--outf', default='./outputs/', help='folder to output images and model checkpoints')
+parser.add_argument('--summaryOutf', default='./outputs/summary/', help='folder to output summaries')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('--taskName', default='test', type=str, help='name of this task.')
 
 opt = parser.parse_args()
+opt.summaryOutf = opt.summaryOutf+opt.taskName+'/'
 print(opt)
 
-try:
-    os.makedirs(opt.outf)
-except OSError:
-    pass
+if not os.path.exists('./outputs/'):
+    os.mkdir('./outputs/')
+if not os.path.exists('./outputs/models/'):
+    os.mkdir('./outputs/models/')
+if not os.path.exists('./outputs/models/'+opt.taskName):
+    os.mkdir('./outputs/models/'+opt.taskName)
+if not os.path.exists('./outputs/summary/'):
+    os.mkdir('./outputs/summary/')
+if not os.path.exists(opt.summaryOutf):
+    os.mkdir(opt.summaryOutf)
+if not os.path.exists('./outputs/fake_samples/'):
+    os.mkdir('./outputs/fake_samples/')
+if not os.path.exists('./outputs/fake_samples/'+opt.taskName):
+    os.mkdir('./outputs/fake_samples/'+opt.taskName)
+
 
 if opt.manualSeed is None:
     opt.manualSeed = random.randint(1, 10000)
@@ -79,11 +96,17 @@ dataloader_cos = torch.utils.data.DataLoader(dataset_cos, batch_size=opt.batchSi
 
 # Handle the device compatibility
 device = torch.device("cuda:0" if opt.cuda else "cpu")
+
+# Instantiation of tensorboard and add net graph to it
+writer = SummaryWriter(opt.summaryOutf)
+dummy_input = Variable(torch.rand(opt.batchSize, 3, 64, 64))
+
 ngpu = int(opt.ngpu)
 nz = int(opt.nz)
 ngf = int(opt.ngf)
 ndf = int(opt.ndf)
 nc = 3
+pre_epoch = 0
 
 
 # Custom weights initialization called on netG and netD
@@ -149,10 +172,13 @@ class Generator(nn.Module):
 
 
 # Instantiation and load of netG
-netG = Generator(ngpu).to(device)
+netG = Generator(ngpu)
+writer.add_graph(netG, dummy_input)
+netG = netG.to(device)
 netG.apply(weights_init)
 if opt.netG != '':
-    netG.load_state_dict(torch.load(opt.netG, map_location='cpu'))
+    pre_epoch, dictG = torch.load(opt.netG, map_location='cpu')
+    netG.load_state_dict(dictG)
 print(netG)
 
 
@@ -192,10 +218,13 @@ class Discriminator(nn.Module):
 
 
 # Instantiation and load of netD
-netD = Discriminator(ngpu).to(device)
+netD = Discriminator(ngpu)
+writer.add_graph(netD, dummy_input)
+netD = netD.to(device)
 netD.apply(weights_init)
 if opt.netD != '':
-    netD.load_state_dict(torch.load(opt.netD, map_location='cpu'))
+    pre_epoch, dictD = torch.load(opt.netD, map_location='cpu')
+    netD.load_state_dict(dictD)
 print(netD)
 
 criterion = nn.BCELoss()
@@ -247,6 +276,13 @@ for epoch in range(opt.niter):
         D_G_z2 = output.mean().item()
         optimizerG.step()
 
+        real_epoch = (epoch + pre_epoch) * (np.ceil(len(dataloader_cos)/opt.batchSize)) + i
+        writer.add_scalar("Loss_D", errD.item(), real_epoch)
+        writer.add_scalar("Loss_G", errG.item(), real_epoch)
+        writer.add_scalar("D(x)", D_x, real_epoch)
+        writer.add_scalar("D(G(z))/Before", D_G_z1, real_epoch)
+        writer.add_scalar("D(G(z))/After", D_G_z2, real_epoch)
+
         print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
               % (epoch, opt.niter, i, len(dataloader_cos),
                  errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
@@ -256,10 +292,16 @@ for epoch in range(opt.niter):
                               normalize=True)
             fake = netG(real_cpu_ani)
             vutils.save_image(fake.detach(),
-                              '%s/fake_samples_epoch_%03d.png' % (opt.outf+'fake_samples', epoch),
+                              '%s/fake_samples_epoch_%03d.png' % (opt.outf+'fake_samples/' + opt.taskName, epoch),
                               normalize=True)
 
     # do checkpointing
     if epoch % 200 == 0:
-        torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (opt.outf+'models', epoch))
-        torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (opt.outf+'models', epoch))
+        torch.save({
+            'epoch': pre_epoch + epoch + 1,
+            'state_dict': netG.state_dict()
+        }, '%s/netG_epoch_%d.pth' % (opt.outf+'models/' + opt.taskName, epoch))
+        torch.save({
+            'epoch': pre_epoch + epoch + 1,
+            'state_dict': netD.state_dict()
+        }, '%s/netD_epoch_%d.pth' % (opt.outf+'models/' + opt.taskName, epoch))
