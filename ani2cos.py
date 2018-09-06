@@ -9,7 +9,6 @@ import torch.utils.data
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
-import numpy as np
 from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 
@@ -247,7 +246,6 @@ for epoch in range(opt.niter):
         real_cpu_cos = data[0].to(device)
         batch_size = real_cpu_cos.size(0)
         real_cpu_ani = next(iter(dataloader_ani))[0].to(device)
-
         label = torch.full((batch_size,), real_label, device=device)
 
         output = netD(real_cpu_cos)
@@ -276,17 +274,16 @@ for epoch in range(opt.niter):
         D_G_z2 = output.mean().item()
         optimizerG.step()
 
-        real_epoch = (epoch + pre_epoch) * (np.ceil(len(dataloader_cos)/opt.batchSize)) + i
+        real_epoch = (epoch + pre_epoch) * len(dataloader_cos) + i
         writer.add_scalar("Loss_D", errD.item(), real_epoch)
         writer.add_scalar("Loss_G", errG.item(), real_epoch)
         writer.add_scalar("D(x)", D_x, real_epoch)
         writer.add_scalar("D(G(z))/Before", D_G_z1, real_epoch)
         writer.add_scalar("D(G(z))/After", D_G_z2, real_epoch)
-
         print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
               % (epoch, opt.niter, i, len(dataloader_cos),
                  errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-        if (i+1) % 6 == 0 and save_pic:
+        if (i+1) % len(dataloader_cos) == 0 and save_pic:
             vutils.save_image(real_cpu_cos,
                               '%s/real_samples.png' % opt.outf,
                               normalize=True)
